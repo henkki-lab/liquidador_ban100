@@ -1,25 +1,38 @@
+from dataclasses import asdict
 from flask import Flask, request, jsonify
-from motor_financiero import LiquidarPensionado, ParametrosPensionado
+from modelos import ParametrosPensionado
+from motor_financiero import liquidar_pensionado, LiquidarPensionado
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return "💰 Liquidador Ban100 está corriendo correctamente."
 
+@app.route("/liquidar", methods=["POST"])
+def liquidar():
+    """
+    Endpoint original: calcula usando parámetros completos del pensionado
+    """
+    data = request.get_json(force=True)
+    p = ParametrosPensionado(**data)
+    resultado = liquidar_pensionado(p)
+    return jsonify(asdict(resultado))
+
 @app.route("/calcular", methods=["POST"])
 def calcular():
+    """
+    Nuevo endpoint: versión simplificada para WhatsApp
+    """
     try:
         data = request.get_json(force=True)
 
-        # Extraer los datos del JSON recibido
         edad = float(data.get("edad", 0))
         monto = float(data.get("monto", 0))
         plazo_meses = int(data.get("plazo_meses", 0))
         embargado = bool(data.get("embargado", False))
         tipo = data.get("tipo", "libre_inversion")
 
-        # Crear parámetros (ajusta si tu clase tiene otros nombres)
         parametros = ParametrosPensionado(
             edad=edad,
             p_monto_solicitado=monto,
@@ -28,10 +41,8 @@ def calcular():
             tipo_credito=tipo
         )
 
-        # Llamar tu función financiera
         resultado = LiquidarPensionado(parametros)
 
-        # Preparar texto de respuesta para WhatsApp
         respuesta_texto = (
             f"💸 *Simulación de crédito Ban100*\n\n"
             f"Edad: {edad}\n"
@@ -48,6 +59,7 @@ def calcular():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port
