@@ -33,12 +33,12 @@ def calcular():
         embargado = bool(data.get("embargado", False))
         tipo = data.get("tipo", "libre_inversion")
 
-        parametros = ParametrosPensionado(
-            edad=edad,
-            p_monto_solicitado=monto,
-            p_plazo_meses=plazo_meses,
-            embargado=embargado,
-            tipo_credito=tipo
+       parametros = ParametrosPensionado(
+         edad=edad,
+         monto_solicitado=monto,
+         plazo_meses=plazo_meses,
+         embargado=embargado,
+        tipo_credito=tipo
         )
 
         resultado = liquidar_pensionado(parametros)
@@ -64,5 +64,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
 
     app.run(host="0.0.0.0", port=port)
+
 
 
