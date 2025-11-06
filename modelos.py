@@ -16,18 +16,20 @@ class ParametrosPensionado:
     edad: int
     plazo_meses: int
     monto_solicitado: float
-    ingresos_totales: float
-    salud: float
-    pension_aporte: float
-    retencion_fuente: float
-    fondo_solidaridad: float
-    deducciones_totales: float
-    cuota_compra_cartera: float
-    smmlv: float
-    codigo_pagaduria: int
-    indice_tasa: int
+    ingresos_totales: float = 0.0
+    salud: float = 0.0
+    pension_aporte: float = 0.0
+    retencion_fuente: float = 0.0
+    fondo_solidaridad: float = 0.0
+    deducciones_totales: float = 0.0
+    cuota_compra_cartera: float = 0.0
+    smmlv: float = 0.0
+    codigo_pagaduria: int = 0
+    indice_tasa: int = 0
     dias_gracia: int = 30
     extraprima_seguro: float = 0.0
+    embargado: bool = False
+    tipo_credito: str = "libre_inversion"
 
 @dataclass
 class CuotaDetalle:
