@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from flask import Flask, request, jsonify
 from modelos import ParametrosPensionado
-from motor_financiero import liquidar_pensionado, LiquidarPensionado
+from motor_financiero import liquidar_pensionado
 
 app = Flask(__name__)
 
@@ -64,4 +64,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
 
     app.run(host="0.0.0.0", port=port)
+
 
