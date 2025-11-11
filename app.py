@@ -7,60 +7,48 @@ app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
 def home():
-    return "💰 Liquidador Ban100 está corriendo correctamente."
+    return "💰 Liquidador Ban100 está corriendo correctamente (v1.0 con precisión de 15 decimales)."
 
 @app.route("/liquidar", methods=["POST"])
 def liquidar():
-    """
-    Endpoint original: calcula usando parámetros completos del pensionado
-    """
-    data = request.get_json(force=True)
-    p = ParametrosPensionado(**data)
-    resultado = liquidar_pensionado(p)
-    return jsonify(asdict(resultado))
+    """Endpoint completo para cálculo total."""
+    try:
+        data = request.get_json(force=True)
+        p = ParametrosPensionado(**data)
+        resultado = liquidar_pensionado(p)
+        return jsonify(asdict(resultado))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 @app.route("/calcular", methods=["POST"])
 def calcular():
-    """
-    Nuevo endpoint: versión simplificada para WhatsApp
-    """
+    """Endpoint simplificado para WhatsApp/n8n."""
     try:
         data = request.get_json(force=True)
-
-        edad = float(data.get("edad", 0))
+        edad = int(data.get("edad", 0))
+        plazo = int(data.get("plazo", 0))
         monto = float(data.get("monto", 0))
-        plazo_meses = int(data.get("plazo_meses", 0))
-        embargado = bool(data.get("embargado", False))
-        tipo = data.get("tipo", "libre_inversion")
+        indice = int(data.get("indice_tasa", 6))  # 1.46% por defecto
 
-        parametros = ParametrosPensionado(
+        p = ParametrosPensionado(
             edad=edad,
+            plazo_meses=plazo,
             monto_solicitado=monto,
-            plazo_meses=plazo_meses,
-            embargado=embargado,
-            tipo_credito=tipo
+            indice_tasa=indice
         )
+        resultado = liquidar_pensionado(p)
 
-        resultado = liquidar_pensionado(parametros)
-
-        respuesta_texto = (
-            f"💸 *Simulación de crédito Ban100*\n\n"
-            f"Edad: {edad}\n"
-            f"Monto solicitado: ${monto:,.0f}\n"
-            f"Plazo: {plazo_meses} meses\n"
-            f"Tipo: {tipo.replace('_', ' ').title()}\n"
-            f"Cuota mensual aprox: ${resultado.cuota_neta:,.0f}\n"
-            f"Disponible: ${resultado.diferencia_disponible_vs_cuota:,.0f}\n"
-            f"Tasa efectiva anual: {resultado.tasa_ea:.2f}%\n"
-        )
-
-        return jsonify({"respuesta": respuesta_texto})
-
+        return jsonify({
+            "cuota_financiera": round(resultado.cuota_financiera, 3),
+            "cuota_neta": round(resultado.cuota_neta, 3),
+            "monto_capitalizado": round(resultado.monto_capitalizado, 3),
+            "monto_financiado": round(resultado.monto_financiado, 3),
+            "seguro_por_millon": resultado.seguro_por_millon,
+            "tasa_mv": resultado.tasa_mv,
+            "tasa_ea": resultado.tasa_ea
+        })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000)
