@@ -1,15 +1,30 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
-# === Tabla de tasas (A100:A105 y "Ley 1527 6") ===
-TASAS_MAX_PENSIONADOS = {
-    1: 0.0179,
-    2: 0.0173,
-    3: 0.0182,
-    4: 0.0176,
-    5: 0.0160,
-    6: 0.0146,   # La que estás usando en el archivo (Ley 1527 6)
+# === Tasas Máximas Pensionados (Ley 1527) con precisión de 15 decimales ===
+# Estas tasas corresponden a las TM (tasa mensual) y su TEA asociada, calculadas
+# con 15 decimales exactos según la fórmula (1 + TM)^12 - 1.
+# Nunca redondees antes de los cálculos: Excel usa doble precisión IEEE-754.
+
+TASAS_MAX_PENSIONADOS: Dict[int, Dict[str, float]] = {
+    1: {"tm": 0.0179, "tea": 0.237261094835891},
+    2: {"tm": 0.0173, "tea": 0.228537515520525},
+    3: {"tm": 0.0182, "tea": 0.241644420720971},
+    4: {"tm": 0.0176, "tea": 0.232891617244106},
+    5: {"tm": 0.0160, "tea": 0.209829646208739},
+    6: {"tm": 0.0146, "tea": 0.189975973965056},  # la que estás usando actualmente
 }
+
+# === Tabla de seguros por edad (en pesos por millón) ===
+# Estos valores son fijos y se usan según el rango de edad del cliente.
+SEGUROS_EDAD: List[Dict[str, float]] = [
+    {"edad_min": 18, "edad_max": 75, "valor": 1032.00},
+    {"edad_min": 76, "edad_max": 78, "valor": 5272.00},
+    {"edad_min": 79, "edad_max": 81, "valor": 8071.00},
+    {"edad_min": 82, "edad_max": 84, "valor": 13421.00},
+]
+
+# === Clases de datos principales ===
 
 @dataclass
 class ParametrosPensionado:
@@ -24,12 +39,13 @@ class ParametrosPensionado:
     deducciones_totales: float = 0.0
     cuota_compra_cartera: float = 0.0
     smmlv: float = 0.0
-    codigo_pagaduria: int = 0
-    indice_tasa: int = 0
+    codigo_pagaduría: int = 0
+    indice_tasa: int = 6
     dias_gracia: int = 30
     extraprima_seguro: float = 0.0
     embargado: bool = False
     tipo_credito: str = "libre_inversion"
+
 
 @dataclass
 class CuotaDetalle:
@@ -39,6 +55,7 @@ class CuotaDetalle:
     seguro: float
     cuota_total: float
     saldo_final: float
+
 
 @dataclass
 class ResultadoPensionado:
