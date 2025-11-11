@@ -1,71 +1,87 @@
 from math import pow
-from modelos import ParametrosPensionado, ResultadoPensionado, CuotaDetalle, TASAS_MAX_PENSIONADOS, SEGUROS_EDAD
+from modelos import (
+    ParametrosPensionado,
+    ResultadoPensionado,
+    CuotaDetalle,
+    TASAS_MAX_PENSIONADOS,
+    SEGUROS_EDAD
+)
 
 
-# === Utilidades ===
+# === Funciones auxiliares ===
 
 def obtener_tasa_por_indice(indice: int) -> dict:
-    """Devuelve la tasa mensual (TM) y efectiva anual (TEA) según el índice elegido."""
-    return TASAS_MAX_PENSIONADOS.get(indice, TASAS_MAX_PENSIONADOS[6])  # por defecto 1.46%
+    """
+    Devuelve la tasa mensual (TM) y efectiva anual (TEA) según el índice de tasa.
+    Si no se encuentra el índice, usa la tasa más baja (1.46% mensual).
+    """
+    return TASAS_MAX_PENSIONADOS.get(indice, TASAS_MAX_PENSIONADOS[6])
 
 
 def obtener_seguro_por_edad(edad: int) -> float:
-    """Devuelve el valor del seguro por millón según el rango de edad."""
+    """
+    Devuelve el valor del seguro por millón según el rango de edad.
+    """
     for rango in SEGUROS_EDAD:
         if rango["edad_min"] <= edad <= rango["edad_max"]:
             return rango["valor"]
-    # valor máximo si la edad excede el rango
-    return SEGUROS_EDAD[-1]["valor"]
+    return SEGUROS_EDAD[-1]["valor"]  # valor más alto si excede el rango
 
 
 def calcular_fv(tasa_ea: float, dias_gracia: int, monto: float) -> float:
-    """Simula la fórmula FV de Excel para calcular los intereses iniciales."""
-    # tasa diaria equivalente con 15 decimales
+    """
+    Calcula los intereses iniciales (como FV en Excel).
+    Usa precisión de 15 decimales sin redondeos prematuros.
+    """
     tasa_dia = pow(1 + tasa_ea, 1 / 360) - 1
     fv = monto * pow(1 + tasa_dia, dias_gracia)
-    intereses_iniciales = fv - monto
-    return intereses_iniciales
+    intereses = fv - monto
+    return intereses
 
 
-def calcular_pmt(tasa_mensual: float, plazo: int, monto: float) -> float:
-    """Simula la fórmula PMT de Excel, devuelve el valor de la cuota financiera."""
+def calcular_pmt(tasa_mensual: float, plazo_meses: int, monto: float) -> float:
+    """
+    Calcula la cuota financiera (PMT de Excel).
+    Usa la fórmula: PMT = monto * (r*(1+r)^n) / ((1+r)^n - 1)
+    """
     if tasa_mensual == 0:
-        return monto / plazo
-    pmt = monto * (tasa_mensual * pow(1 + tasa_mensual, plazo)) / (pow(1 + tasa_mensual, plazo) - 1)
+        return monto / plazo_meses
+    pmt = monto * (tasa_mensual * pow(1 + tasa_mensual, plazo_meses)) / (pow(1 + tasa_mensual, plazo_meses) - 1)
     return pmt
 
 
-# === Función principal ===
+# === Motor principal ===
 
 def liquidar_pensionado(p: ParametrosPensionado) -> ResultadoPensionado:
-    """Calcula la cuota del pensionado con la misma lógica del Excel Ban100."""
+    """
+    Replica los cálculos del Excel Ban100 con precisión de 15 decimales.
+    """
 
-    # 1. Obtener tasas y seguro
+    # 1️⃣ Obtener tasas y seguros
     tasas = obtener_tasa_por_indice(p.indice_tasa)
-    tasa_mv = tasas["tm"]  # tasa mensual (decimal)
-    tasa_ea = tasas["tea"]  # tasa efectiva anual (decimal)
+    tasa_mv = tasas["tm"]
+    tasa_ea = tasas["tea"]
     seguro_mm = obtener_seguro_por_edad(p.edad)
 
-    # 2. Calcular intereses iniciales (por días de gracia)
+    # 2️⃣ Intereses iniciales
     intereses_iniciales = calcular_fv(tasa_ea, p.dias_gracia, p.monto_solicitado)
 
-    # 3. Calcular seguro primer mes
+    # 3️⃣ Seguro primer mes
     seguro_primer_mes = (p.monto_solicitado / 1_000_000) * seguro_mm
 
-    # 4. Calcular monto a capitalizar
+    # 4️⃣ Monto a capitalizar
     monto_capitalizar = intereses_iniciales + seguro_primer_mes
 
-    # 5. Calcular monto total financiado
+    # 5️⃣ Monto total financiado
     monto_mas_capitalizacion = p.monto_solicitado + monto_capitalizar
 
-    # 6. Calcular cuota financiera
+    # 6️⃣ Cuota financiera (PMT)
     cuota_financiera = calcular_pmt(tasa_mv, p.plazo_meses, monto_mas_capitalizacion)
 
-    # 7. Calcular cuota neta (cuota financiera + seguro mensual)
-    seguro_mensual = seguro_mm
-    cuota_neta = cuota_financiera + seguro_mensual
+    # 7️⃣ Cuota neta
+    cuota_neta = cuota_financiera + seguro_mm
 
-    # 8. Crear resultado
+    # 8️⃣ Resultado estructurado
     resultado = ResultadoPensionado(
         cuota_financiera=round(cuota_financiera, 3),
         cuota_neta=round(cuota_neta, 3),
