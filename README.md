@@ -1,29 +1,23 @@
 # 💰 Liquidador Ban100
 
 Motor financiero en **Python** que replica los cálculos del archivo Excel  
-**“Liquidador Cuota Ban100 Abr 2025 — Campaña Compra y Retanqueo tasa 1,46%”**  
-utilizando la misma lógica de fórmulas, tasas y precisión de 15 decimales que maneja Excel.
+**“Liquidador Cuota Ban100 Abr 2025 — Campaña Compra y Retanqueo tasa 1,46%”**,  
+utilizando la misma lógica de fórmulas, tasas y precisión de **15 decimales** que maneja Excel.
 
 ---
 
 ## 🧩 Estructura del Proyecto
 
+```plaintext
 /liquidador_ban100/
 │
-├── app.py → Microservicio Flask: define los endpoints / y /liquidar
-├── modelos.py → Dataclasses, tasas y constantes base (seguro por edad, TM ↔ TEA, etc.)
-├── motor_financiero.py → Lógica principal de cálculo (idéntica al Excel)
-├── tablas_excel.py → Tasas y equivalencias TM ↔ TEA según Ley 1527
-├── requirements.txt → Dependencias necesarias para Render
-├── test_motor.py → Pruebas unitarias y verificación de precisión
-└── README.md → Este archivo
----
-
-## ⚙️ Ejemplo de Uso Local
-
-Ejemplo para ejecutar el cálculo de un pensionado:
-
-```python
+├── app.py                → Microservicio Flask: define los endpoints `/` y `/liquidar`
+├── modelos.py            → Dataclasses, tasas y constantes base (seguro por edad, TM ↔ TEA, etc.)
+├── motor_financiero.py   → Lógica principal de cálculo (idéntica al Excel)
+├── tablas_excel.py       → Tasas y equivalencias TM ↔ TEA según Ley 1527
+├── requirements.txt      → Dependencias necesarias para Render
+├── test_motor.py         → Pruebas unitarias y verificación de precisión
+└── README.md             → Este archivo
 from modelos import ParametrosPensionado
 from motor_financiero import liquidar_pensionado
 
