@@ -14,7 +14,7 @@ app = Flask(__name__)
 # -----------------------------------------------------
 @app.route("/", methods=["GET"])
 def home():
-    return "💰 Liquidador Ban100 está corriendo correctamente (v1.1 con precisión de 15 decimales)."
+    return "💰 Liquidador Ban100 está corriendo correctamente (v1.2 con precisión de 15 decimales)."
 
 
 # -----------------------------------------------------
@@ -68,13 +68,13 @@ def calcular():
 
 
 # -----------------------------------------------------
-# NUEVO ENDPOINT: cálculo inverso (desde cuota → monto)
+# NUEVO ENDPOINT: cálculo del monto desde la cuota
 # -----------------------------------------------------
-@app.route("/invertir", methods=["POST"])
-def invertir():
+@app.route("/estimarmonto", methods=["POST"])
+def estimar_monto():
     """
-    Calcula el monto aproximado solicitado a partir de una cuota mensual,
-    plazo y tasa mensual (índice). Usa la fórmula inversa de PMT.
+    Calcula el monto solicitado a partir de una cuota mensual,
+    el plazo (en meses) y el índice de tasa mensual (TM).
     """
     try:
         data = request.get_json(force=True)
@@ -92,7 +92,7 @@ def invertir():
         return jsonify({
             "tasa_mv": round(tm, 15),
             "plazo_meses": plazo,
-            "cuota_mensual": cuota,
+            "cuota_mensual": round(cuota, 3),
             "monto_aprox_financiado": round(monto_financiado, 0)
         })
     except Exception as e:
