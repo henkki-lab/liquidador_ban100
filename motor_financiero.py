@@ -7,7 +7,6 @@ from modelos import (
     SEGUROS_EDAD,
 )
 
-
 # ---------------------------
 # Utilidades idénticas a Excel
 # ---------------------------
@@ -16,16 +15,13 @@ def obtener_tm_por_indice(indice: int) -> float:
     """Devuelve la tasa mensual (TM) en decimal según índice B65."""
     return TASAS_MAX_PENSIONADOS.get(indice, TASAS_MAX_PENSIONADOS[6])["tm"]  # default 1.46%
 
-
 def calcular_tea_excel_desde_tm(tm: float) -> float:
     """
     La hoja hace: C19 = ROUND(((1+TM)^12)-1, 6)
     IMPORTANTE: hay redondeo a 6 decimales ANTES de usar la TEA en FV.
     """
     tea = pow(1.0 + tm, 12.0) - 1.0
-    # Redondeo a 6 decimales, como Excel: ROUND(.., 6)
-    return round(tea, 6)
-
+    return round(tea, 6)  # EXACTO a Excel
 
 def obtener_seguro_por_edad_con_extraprima(edad: int, extraprima: float) -> float:
     """
@@ -38,21 +34,19 @@ def obtener_seguro_por_edad_con_extraprima(edad: int, extraprima: float) -> floa
             break
     return base * (1.0 + (extraprima or 0.0))
 
-
 def calcular_fv_excel(tea: float, dias: int, monto: float) -> float:
     """
-    B22 = FV(TEA, días/360, 0, -monto) - monto
+    B22 = FV(TEA; días/360; 0; -monto) - monto
     Excel toma la TEA (ya con ROUND a 6), calcula tasa diaria (comp 360)
-    y hace FV con n = días/360 (puede ser fraccionario).
+    y hace FV con n = días (puede ser fraccionario si aplica).
     """
     tasa_dia = pow(1.0 + tea, 1.0 / 360.0) - 1.0
     fv = monto * pow(1.0 + tasa_dia, dias)
     return fv - monto
 
-
 def calcular_pmt_excel(tm: float, n: int, pv: float) -> float:
     """
-    B26 = ROUND( PMT(TM, plazo, -MontoFinanciado), 0 )
+    B26 = ROUND( PMT(TM; plazo; -MontoFinanciado); 0 )
     """
     if tm == 0:
         cuota = pv / n
@@ -60,16 +54,15 @@ def calcular_pmt_excel(tm: float, n: int, pv: float) -> float:
         cuota = pv * (tm * pow(1.0 + tm, n)) / (pow(1.0 + tm, n) - 1.0)
     return round(cuota, 0)  # redondeo a pesos como la hoja
 
-
 # ---------------------------
 # Motor principal idéntico a la hoja
 # ---------------------------
 
 def liquidar_pensionado(p: ParametrosPensionado) -> ResultadoPensionado:
     # 1) Tasas y seguro
-    tm = obtener_tm_por_indice(p.indice_tasa)                 # B19 (TM)
-    tea = calcular_tea_excel_desde_tm(tm)                      # C19 (ROUND a 6)
-    seguro_mm = obtener_seguro_por_edad_con_extraprima(p.edad, p.extraprima_seguro)  # B27
+    tm = obtener_tm_por_indice(p.indice_tasa)  # B19 (TM)
+    tea = calcular_tea_excel_desde_tm(tm)      # C19 (ROUND a 6)
+    seguro_mm = obtener_seguro_por_edad_con_extraprima(p.edad, getattr(p, "extraprima_seguro", 0.0))  # B27
 
     # 2) Intereses iniciales (B22)
     intereses_iniciales = calcular_fv_excel(tea, p.dias_gracia, p.monto_solicitado)
@@ -89,7 +82,6 @@ def liquidar_pensionado(p: ParametrosPensionado) -> ResultadoPensionado:
     # 7) Cuota neta (B28) = CuotaFin + SeguroPrimerMes
     cuota_neta = float(cuota_financiera) + seguro_primer_mes
 
-    # Estructura de salida
     return ResultadoPensionado(
         cuota_financiera=float(cuota_financiera),
         cuota_neta=cuota_neta,
