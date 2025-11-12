@@ -1,14 +1,25 @@
 from dataclasses import asdict
 from flask import Flask, request, jsonify
 from modelos import ParametrosPensionado
-from motor_financiero import liquidar_pensionado
+from motor_financiero import (
+    liquidar_pensionado,
+    obtener_tm_por_indice,
+    calcular_monto_desde_cuota
+)
 
 app = Flask(__name__)
 
+# -----------------------------------------------------
+# Página principal (verificación)
+# -----------------------------------------------------
 @app.route("/", methods=["GET"])
 def home():
-    return "💰 Liquidador Ban100 está corriendo correctamente (v1.0 con precisión de 15 decimales)."
+    return "💰 Liquidador Ban100 está corriendo correctamente (v1.1 con precisión de 15 decimales)."
 
+
+# -----------------------------------------------------
+# Endpoint completo con todos los parámetros
+# -----------------------------------------------------
 @app.route("/liquidar", methods=["POST"])
 def liquidar():
     """Endpoint completo para cálculo total."""
@@ -20,15 +31,19 @@ def liquidar():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+# -----------------------------------------------------
+# Endpoint simplificado (para WhatsApp / n8n)
+# -----------------------------------------------------
 @app.route("/calcular", methods=["POST"])
 def calcular():
-    """Endpoint simplificado para WhatsApp/n8n."""
+    """Versión simplificada: calcula valores principales con pocos datos."""
     try:
         data = request.get_json(force=True)
         edad = int(data.get("edad", 0))
         plazo = int(data.get("plazo", 0))
         monto = float(data.get("monto", 0))
-        indice = int(data.get("indice_tasa", 5))  # 1,60% por defecto
+        indice = int(data.get("indice_tasa", 5))  # 1.46% por defecto
 
         p = ParametrosPensionado(
             edad=edad,
@@ -36,6 +51,7 @@ def calcular():
             monto_solicitado=monto,
             indice_tasa=indice
         )
+
         resultado = liquidar_pensionado(p)
 
         return jsonify({
@@ -50,6 +66,41 @@ def calcular():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+# -----------------------------------------------------
+# NUEVO ENDPOINT: cálculo inverso (desde cuota → monto)
+# -----------------------------------------------------
+@app.route("/invertir", methods=["POST"])
+def invertir():
+    """
+    Calcula el monto aproximado solicitado a partir de una cuota mensual,
+    plazo y tasa mensual (índice). Usa la fórmula inversa de PMT.
+    """
+    try:
+        data = request.get_json(force=True)
+        cuota = float(data.get("cuota", 0))
+        plazo = int(data.get("plazo", 0))
+        indice = int(data.get("indice_tasa", 6))  # 1.46% por defecto
+        edad = int(data.get("edad", 70))
+
+        # Obtener tasa mensual (TM)
+        tm = obtener_tm_por_indice(indice)
+
+        # Calcular monto financiado (aproximado)
+        monto_financiado = calcular_monto_desde_cuota(tm, plazo, cuota)
+
+        return jsonify({
+            "tasa_mv": round(tm, 15),
+            "plazo_meses": plazo,
+            "cuota_mensual": cuota,
+            "monto_aprox_financiado": round(monto_financiado, 0)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# -----------------------------------------------------
+# Ejecución local / Render
+# -----------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
