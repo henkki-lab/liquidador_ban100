@@ -28,7 +28,7 @@ def calcular():
         edad = int(data.get("edad", 0))
         plazo = int(data.get("plazo", 0))
         monto = float(data.get("monto", 0))
-        indice = int(data.get("indice_tasa", 6))  # 1.46% por defecto
+        indice = int(data.get("indice_tasa", 5))  # 1,60% por defecto
 
         p = ParametrosPensionado(
             edad=edad,
@@ -52,3 +52,4 @@ def calcular():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
