@@ -3,26 +3,20 @@ from flask import Flask, request, jsonify
 from modelos import ParametrosPensionado
 from motor_financiero import (
     liquidar_pensionado,
-    obtener_tm_por_indice,
-    calcular_monto_desde_cuota
+    estimar_monto_desde_cuota,
 )
 
 app = Flask(__name__)
 
-# -----------------------------------------------------
-# Página principal (verificación)
-# -----------------------------------------------------
+# ------------------------------------------
 @app.route("/", methods=["GET"])
 def home():
-    return "💰 Liquidador Ban100 está corriendo correctamente (v1.2 con precisión de 15 decimales)."
+    return "💰 Liquidador Ban100 activo (v2.0 precisión Excel: 15 decimales / redondeos idénticos)."
 
-
-# -----------------------------------------------------
-# Endpoint completo con todos los parámetros
-# -----------------------------------------------------
+# ------------------------------------------
 @app.route("/liquidar", methods=["POST"])
 def liquidar():
-    """Endpoint completo para cálculo total."""
+    """Cálculo completo (mismo flujo que Excel)."""
     try:
         data = request.get_json(force=True)
         p = ParametrosPensionado(**data)
@@ -31,18 +25,18 @@ def liquidar():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
-# -----------------------------------------------------
-# Endpoint simplificado (para WhatsApp / n8n)
-# -----------------------------------------------------
+# ------------------------------------------
 @app.route("/calcular", methods=["POST"])
 def calcular():
-    """Versión simplificada: calcula valores principales con pocos datos."""
+    """
+    Versión simplificada: edad, plazo, monto, indice_tasa.
+    Devuelve también todas las celdas intermedias para auditoría.
+    """
     try:
         data = request.get_json(force=True)
-        edad = int(data.get("edad", 0))
-        plazo = int(data.get("plazo", 0))
-        monto = float(data.get("monto", 0))
+        edad   = int(data.get("edad", 0))
+        plazo  = int(data.get("plazo", 0))
+        monto  = float(data.get("monto", 0))
         indice = int(data.get("indice_tasa", 5))  # 1.46% por defecto
 
         p = ParametrosPensionado(
@@ -51,56 +45,52 @@ def calcular():
             monto_solicitado=monto,
             indice_tasa=indice
         )
+        r = liquidar_pensionado(p)
 
-        resultado = liquidar_pensionado(p)
-
+        # Extiende respuesta con campos intermedios (ya vienen en r)
         return jsonify({
-            "cuota_financiera": round(resultado.cuota_financiera, 3),
-            "cuota_neta": round(resultado.cuota_neta, 3),
-            "monto_capitalizado": round(resultado.monto_capitalizado, 3),
-            "monto_financiado": round(resultado.monto_financiado, 3),
-            "seguro_por_millon": resultado.seguro_por_millon,
-            "tasa_mv": resultado.tasa_mv,
-            "tasa_ea": resultado.tasa_ea
+            "tasa_mv": r.tasa_mv,
+            "tasa_ea": r.tasa_ea,
+            "seguro_por_millon": r.seguro_por_millon,
+
+            "intereses_iniciales": round(r.monto_capitalizado - (monto * r.seguro_por_millon / 1_000_000), 3),
+            "seguro_primer_mes": round(monto * r.seguro_por_millon / 1_000_000, 3),
+            "monto_capitalizar": round(r.monto_capitalizado, 3),
+            "monto_financiado": round(r.monto_financiado, 3),
+
+            "cuota_financiera": round(r.cuota_financiera, 3),
+            "seguro_s_mm": r.seguro_por_millon,
+            "cuota_neta": round(r.cuota_neta, 3),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
-# -----------------------------------------------------
-# NUEVO ENDPOINT: cálculo del monto desde la cuota
-# -----------------------------------------------------
+# ------------------------------------------
 @app.route("/estimarmonto", methods=["POST"])
 def estimar_monto():
     """
-    Calcula el monto solicitado a partir de una cuota mensual,
-    el plazo (en meses) y el índice de tasa mensual (TM).
+    Cálculo inverso: desde cuota NETA (con seguro incluido) → monto solicitado.
+    Devuelve también todas las celdas intermedias para verificar contra Excel.
     """
     try:
         data = request.get_json(force=True)
-        cuota = float(data.get("cuota", 0))
-        plazo = int(data.get("plazo", 0))
-        indice = int(data.get("indice_tasa", 6))  # 1.46% por defecto
-        edad = int(data.get("edad", 70))
+        cuota  = float(data.get("cuota", 0))
+        plazo  = int(data.get("plazo", 0))
+        indice = int(data.get("indice_tasa", 5))  # 1.46% por defecto
+        edad   = int(data.get("edad", 70))
 
-        # Obtener tasa mensual (TM)
-        tm = obtener_tm_por_indice(indice)
-
-        # Calcular monto financiado (aproximado)
-        monto_financiado = calcular_monto_desde_cuota(tm, plazo, cuota)
-
-        return jsonify({
-            "tasa_mv": round(tm, 15),
-            "plazo_meses": plazo,
-            "cuota_mensual": round(cuota, 3),
-            "monto_aprox_financiado": round(monto_financiado, 0)
-        })
+        out = estimar_monto_desde_cuota(
+            edad=edad,
+            indice_tasa=indice,
+            plazo_meses=plazo,
+            cuota_neta=cuota,
+            dias_gracia=30,
+            extraprima=0.0
+        )
+        return jsonify(out)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
-# -----------------------------------------------------
-# Ejecución local / Render
-# -----------------------------------------------------
+# ------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
