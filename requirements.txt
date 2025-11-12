@@ -1,2 +1,35 @@
-Flask==3.0.0
+# ========================
+# 🧮 Dependencias base
+# ========================
+Flask==3.0.3
 gunicorn==21.2.0
+
+# ========================
+# 🧾 Precisión numérica
+# ========================
+decimal==1.70
+numpy==1.26.4
+
+# ========================
+# 🧠 Compatibilidad con modelos y dataclasses
+# ========================
+dataclasses-json==0.6.7
+marshmallow==3.20.1
+
+# ========================
+# 📊 Utilidades matemáticas (si se usa FV, PMT, etc.)
+# ========================
+pandas==2.2.2
+
+# ========================
+# 🧩 Extras (seguridad y rendimiento)
+# ========================
+itsdangerous==2.2.0
+Werkzeug==3.0.3
+click==8.1.7
+Jinja2==3.1.4
+
+# ========================
+# ⚙️ Ambiente Render
+# ========================
+python-dotenv==1.0.1
