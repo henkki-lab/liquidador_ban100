@@ -4,95 +4,101 @@ from modelos import (
     ResultadoPensionado,
     CuotaDetalle,
     TASAS_MAX_PENSIONADOS,
-    SEGUROS_EDAD
+    SEGUROS_EDAD,
 )
 
 
-# === Funciones auxiliares ===
+# ---------------------------
+# Utilidades idénticas a Excel
+# ---------------------------
 
-def obtener_tasa_por_indice(indice: int) -> dict:
-    """
-    Devuelve la tasa mensual (TM) y efectiva anual (TEA) según el índice de tasa.
-    Si no se encuentra el índice, usa la tasa más baja (1.46% mensual).
-    """
-    return TASAS_MAX_PENSIONADOS.get(indice, TASAS_MAX_PENSIONADOS[6])
+def obtener_tm_por_indice(indice: int) -> float:
+    """Devuelve la tasa mensual (TM) en decimal según índice B65."""
+    return TASAS_MAX_PENSIONADOS.get(indice, TASAS_MAX_PENSIONADOS[6])["tm"]  # default 1.46%
 
 
-def obtener_seguro_por_edad(edad: int) -> float:
+def calcular_tea_excel_desde_tm(tm: float) -> float:
     """
-    Devuelve el valor del seguro por millón según el rango de edad.
+    La hoja hace: C19 = ROUND(((1+TM)^12)-1, 6)
+    IMPORTANTE: hay redondeo a 6 decimales ANTES de usar la TEA en FV.
     """
+    tea = pow(1.0 + tm, 12.0) - 1.0
+    # Redondeo a 6 decimales, como Excel: ROUND(.., 6)
+    return round(tea, 6)
+
+
+def obtener_seguro_por_edad_con_extraprima(edad: int, extraprima: float) -> float:
+    """
+    B27 = Seguro por millón según edad * (1 + extraprima)
+    """
+    base = SEGUROS_EDAD[0]["valor"]  # fallback
     for rango in SEGUROS_EDAD:
         if rango["edad_min"] <= edad <= rango["edad_max"]:
-            return rango["valor"]
-    return SEGUROS_EDAD[-1]["valor"]  # valor más alto si excede el rango
+            base = rango["valor"]
+            break
+    return base * (1.0 + (extraprima or 0.0))
 
 
-def calcular_fv(tasa_ea: float, dias_gracia: int, monto: float) -> float:
+def calcular_fv_excel(tea: float, dias: int, monto: float) -> float:
     """
-    Calcula los intereses iniciales (como FV en Excel).
-    Usa precisión de 15 decimales sin redondeos prematuros.
+    B22 = FV(TEA, días/360, 0, -monto) - monto
+    Excel toma la TEA (ya con ROUND a 6), calcula tasa diaria (comp 360)
+    y hace FV con n = días/360 (puede ser fraccionario).
     """
-    tasa_dia = pow(1 + tasa_ea, 1 / 360) - 1
-    fv = monto * pow(1 + tasa_dia, dias_gracia)
-    intereses = fv - monto
-    return intereses
+    tasa_dia = pow(1.0 + tea, 1.0 / 360.0) - 1.0
+    fv = monto * pow(1.0 + tasa_dia, dias)
+    return fv - monto
 
 
-def calcular_pmt(tasa_mensual: float, plazo_meses: int, monto: float) -> float:
+def calcular_pmt_excel(tm: float, n: int, pv: float) -> float:
     """
-    Calcula la cuota financiera (PMT de Excel).
-    Usa la fórmula: PMT = monto * (r*(1+r)^n) / ((1+r)^n - 1)
+    B26 = ROUND( PMT(TM, plazo, -MontoFinanciado), 0 )
     """
-    if tasa_mensual == 0:
-        return monto / plazo_meses
-    pmt = monto * (tasa_mensual * pow(1 + tasa_mensual, plazo_meses)) / (pow(1 + tasa_mensual, plazo_meses) - 1)
-    return pmt
+    if tm == 0:
+        cuota = pv / n
+    else:
+        cuota = pv * (tm * pow(1.0 + tm, n)) / (pow(1.0 + tm, n) - 1.0)
+    return round(cuota, 0)  # redondeo a pesos como la hoja
 
 
-# === Motor principal ===
+# ---------------------------
+# Motor principal idéntico a la hoja
+# ---------------------------
 
 def liquidar_pensionado(p: ParametrosPensionado) -> ResultadoPensionado:
-    """
-    Replica los cálculos del Excel Ban100 con precisión de 15 decimales.
-    """
+    # 1) Tasas y seguro
+    tm = obtener_tm_por_indice(p.indice_tasa)                 # B19 (TM)
+    tea = calcular_tea_excel_desde_tm(tm)                      # C19 (ROUND a 6)
+    seguro_mm = obtener_seguro_por_edad_con_extraprima(p.edad, p.extraprima_seguro)  # B27
 
-    # 1️⃣ Obtener tasas y seguros
-    tasas = obtener_tasa_por_indice(p.indice_tasa)
-    tasa_mv = tasas["tm"]
-    tasa_ea = tasas["tea"]
-    seguro_mm = obtener_seguro_por_edad(p.edad)
+    # 2) Intereses iniciales (B22)
+    intereses_iniciales = calcular_fv_excel(tea, p.dias_gracia, p.monto_solicitado)
 
-    # 2️⃣ Intereses iniciales
-    intereses_iniciales = calcular_fv(tasa_ea, p.dias_gracia, p.monto_solicitado)
+    # 3) Seguro primer mes (B23)
+    seguro_primer_mes = (p.monto_solicitado / 1_000_000.0) * seguro_mm
 
-    # 3️⃣ Seguro primer mes
-    seguro_primer_mes = (p.monto_solicitado / 1_000_000) * seguro_mm
-
-    # 4️⃣ Monto a capitalizar
+    # 4) Monto a capitalizar (B24)
     monto_capitalizar = intereses_iniciales + seguro_primer_mes
 
-    # 5️⃣ Monto total financiado
-    monto_mas_capitalizacion = p.monto_solicitado + monto_capitalizar
+    # 5) Monto + Capitalización (B25)
+    monto_financiado = p.monto_solicitado + monto_capitalizar
 
-    # 6️⃣ Cuota financiera (PMT)
-    cuota_financiera = calcular_pmt(tasa_mv, p.plazo_meses, monto_mas_capitalizacion)
+    # 6) Cuota financiera (B26) con redondeo a 0
+    cuota_financiera = calcular_pmt_excel(tm, p.plazo_meses, monto_financiado)
 
-    # 7️⃣ Cuota neta
-    cuota_neta = cuota_financiera + seguro_mm
+    # 7) Cuota neta (B28) = CuotaFin + SeguroPrimerMes
+    cuota_neta = float(cuota_financiera) + seguro_primer_mes
 
-    # 8️⃣ Resultado estructurado
-    resultado = ResultadoPensionado(
-        cuota_financiera=round(cuota_financiera, 3),
-        cuota_neta=round(cuota_neta, 3),
+    # Estructura de salida
+    return ResultadoPensionado(
+        cuota_financiera=float(cuota_financiera),
+        cuota_neta=cuota_neta,
         disponible_cuota=0.0,
         diferencia_disponible_vs_cuota=0.0,
         seguro_por_millon=seguro_mm,
-        monto_capitalizado=round(monto_capitalizar, 3),
-        monto_financiado=round(monto_mas_capitalizacion, 3),
-        tasa_mv=tasa_mv,
-        tasa_ea=tasa_ea,
-        plan_pagos=[]
+        monto_capitalizado=monto_capitalizar,
+        monto_financiado=monto_financiado,
+        tasa_mv=tm,
+        tasa_ea=tea,
+        plan_pagos=[],
     )
-
-    return resultado
